@@ -1,0 +1,117 @@
+\documentclass{article}
+
+\usepackage[french]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsfonts}            %For \leadsto
+\usepackage{amsmath}             %For \text
+\usepackage{fancybox}            %For \ovalbox
+\usepackage{hyperref}
+
+\title{Travail pratique \#1 - Rapport de travail sur l'écriture d'une partie d’un interpréteur d’un langage de programmation fonctionnel}
+\author{
+\\IFT-2035
+\\\
+\\Loïc Daudé Mondet
+\\20243814 -- Programmes d'échanges - 1er c.(Échange)
+\\Tobias Lepoutre
+\\20177637 -- Bac Informatique (UdeM) - 3e année
+}
+
+\renewenvironment{abstract}
+	{\center{\bfseries Contexte\vspace{-\topsep}}\endcenter\quotation}
+	{\endquotation}
+\begin{document}
+
+\maketitle
+
+\newcommand \mML {\ensuremath\mu\textsl{ML}}
+\newcommand \kw [1] {\textsf{#1}}
+\newcommand \id [1] {\textsl{#1}}
+\newcommand \punc [1] {\kw{`#1'}}
+\newcommand \str [1] {\texttt{"#1"}}
+\newenvironment{outitemize}{
+	\begin{itemize}
+		\let \origitem \item \def \item {\origitem[]\hspace{-18pt}}
+		}{
+	\end{itemize}
+}
+\newcommand \Align [2][t] {
+	\begin{array}[#1]{@{}l}
+		#2 
+	\end{array}}
+
+\begin{abstract}
+	Ce rapport témoigne du travail de recherche et de programmation en groupe concernant l'écriture d'une partie d’un interpréteur d’un langage de programmation fonctionnel dans le cadre du cours IFT-2035 Concepts des langages de programmation. Chaque fonction est nommée et commentée dans le code pour accompagner le rapport et en améliorer la compréhension.
+\end{abstract}
+
+\section{Compréhension du langage et choix d'implémentation}
+\subsection{Concernant la compréhension du langage slip}
+La principale difficulté réside dans la compréhension de la structure d'une expression et comment arriver à la réécrire sous la forme d'une lambda expression. Il faut bien maîtriser le pattern matching d'haskell pour isoler les différents cas et ensuite, il faut arriver à se représenter mentalement la forme en lambda expression afin de déterminer ce que doit renvoyer la fonction s2l dans ce cas. De plus, il faut tirer parti de la récursivité, car la plupart du temps, une expression est en réalité composée de plusieurs expressions.
+
+\subsection{Fonction S2L: Analyse des expressions du langage}
+La première chose à faire a été de déterminer si (+ 3 4) était une liste composée des éléments +, 3 et 4 ou s'il s'agissait d'un appel à la fonction + avec 2 arguments 3 et 4. Nous avons choisi le 2e cas, car il existe le mot-clef list dans notre langage qui permet de définir une liste ainsi que le constructeur add.
+Dans ce cas, l'appel de fonction doit être modifié pour prendre en compte le fait que nos fonctions ne prennent qu'un seul argument (curried). C'est pourquoi dans s2l nous avons rajouté une définition afin de réécrire ces ensembles pour les imbriquer et obtenir dans le cas de notre exemple (+ (3 (4 nil))).
+Ensuite, nous avons dû reconnaître les expressions correspondantes à chacune des valeurs manipulées par le langage, à savoir les entiers, les listes et les fonctions afin de produire une lambda expression qui sera plus simple à manipuler en interne par l'interpréteur.
+\newline 
+
+Parmi les différentes fonctions à traiter pour s2l, celles qui nous ont posé des problèmes sont les suivantes : nous ne sommes pas arrivés à généraliser les listes à plus de 3 arguments ceci est dû au fait que nous n'avons pas su convertir la structure des listes en Ladd imbriqués. En effet, pour notre implémentation au delà de 3 arguments, on bascule dans le cas général qui convertit tous les Scons imbriqués en Lcall.
+
+
+
+\subsection{Fonction L2D: Index de Bruijn et la fonction auxiliaire replace}
+Désormais, les variables sont représentées par des indexes qui correspondent à leur distance dans l'environnement. Afin de déterminer cet index, la fonction l2d doit être en mesure de reconnaître le symbole associé à une opération prédéfinie et renvoyer la référence correspondante dans l'environnement. On parcourt alors la liste des variables de l'environnement afin de renvoyer la position associée. En haskell, nous devons faire appel à la récursivité.
+\newline 
+
+On remarque également dans le code source que les opérations prédéfinies sont enregistrées dans la liste de tuples env0 qui associe chaque opération prédéfinie au calcul correspondant.
+Afin de nous faciliter la tâche nous avons défini plusieurs fonctions auxiliaires :
+La fonction caract qui transforme un String en Char, c'est nécessaire pour le bon fonctionnement du map dans la fonction replace qui ne prend que des caractères. Cette dernière fonction remplace dans le corps de la fonction les variables par leur valeur constante. Ainsi, on obtient un string calculable avec nos autres fonctions. On doit aussi être en mesure d'extraire la chaîne de caractère correspondant à une référence ou la valeur numérique d'une constante pour pouvoir être traité par la fonction replace.
+La fonction replace n'intervient que lorsqu'on doit convertir un Llambda simple ou imbriqué en Dexp. Le reste du temps, on remplace simplement les Lexp par leur équivalent Dexp en prenant soin de convertir également récursivement chacun de leur argument en Dexp. 
+\newline 
+
+Nous n'avons pas réussi dans la fonction précédente (s2l) à implémenter le let et le match cependant, nous avions une idée quant à leur implémentation au niveau de la fonction l2d, on peut retrouver cette ébauche de code en commentaire à la fin de la section l2d.
+
+
+\subsection{Fonction EVAL: Faire correspondre env0 et les résultats obtenus}
+L'évaluation se fait en plusieurs étapes, tout d'abord étant donné que dans la section précédente, nous avons substitué aux noms de variables des index, désormais à l'exécution, il faut retrouver la Value associée à cet index. Puis on doit effectuer l’évaluation à proprement parler. Il faut donc comprendre comment extraire la Value d’une expression et dans le cas d’un appel de fonction, comment arriver à exécuter la logique de cette fonction.
+Les fonctions Eval 1 et Eval 2 sont interdépendantes. C'est grâce à ces fonctions clé qu'on effectue les calculs de notre interpréteur de langage de programmation fonctionnel.
+
+
+\subsubsection{Eval 1:}
+Dans cette fonction, décrémente récursivement l'index et, tant qu'il est supérieur à 0, on continue d'avancer dans la liste. Ainsi, on peut retrouver la Value associée à un index.
+\subsubsection{Eval 2:}
+La subtilité dans la fonction eval 2 réside dans la bonne construction via les précédentes étapes d'une expression d'un ou plusieurs appels de fonctions imbriqués qui puissent être évalués de façon récursive.
+Lors d'un appel à eval xs (Dcall e1 e2), on extrait la fonction Value->Value venant de e1, et on retourne la Value obtenue en lui appliquant l'argument résultant de l'évaluation de e2
+\subsubsection{Eval 3:}
+On remarque que pour le cas des listes, il n'est pas nécessaire de se préoccuper du format d'affichage, car, si on regarde dans l'instance de Show Value, les valeurs y sont déjà traitées au cas par cas : la liste vide est remplacé par "[]", et les points séparateurs ainsi que les crochets délimitant les listes sont déjà prévus dans l'affichage du code source.
+\newpage
+\section{Conclusion}
+Ce travail pratique nous a permis de mieux comprendre et connaître le fonctionnement d'un langage de programmation fonctionnel à travers à la fois sa logique interne (analyse de l'arbre syntaxique, index de Bruijn, évaluation) et ses contraintes notamment d'écriture. En effet, la programmation ayant été faite en Haskell, lui-même un langage fonctionnel, nous avons pu améliorer nos connaissances à ce propos. Par exemple, il faut faire attention à l'ordre dans lequel on écrit les différents cas d'une fonction (pattern matching) car ils sont traités de façon séquentielle et donc le cas le plus général doit être écrit en dernier. Nous avons été confrontés à ce problème notamment lors de l'écriture de s2l.
+En haskell, il faut également utiliser la récursivité en lieu et place des boucles conditionnelles.
+
+
+\begin{thebibliography}{}
+	
+	\bibitem{article1}
+	Documentation d'Haskell
+	\url{https://www.haskell.org/documentation/}
+	
+	\bibitem{article2}
+	A Gentle Introduction to Haskell, Version 98. Case Expressions and Pattern Matching
+	\url{https://www.haskell.org/tutorial/patterns.html}
+	
+	\bibitem{article3}
+	Ingo. Haskell replace characters in string
+	\url{https://stackoverflow.com/questions/19545253/haskell-replace-characters-in-string}
+	
+	\bibitem{article4}
+	S. Monnier. Notes de cours sur la Programmation fonctionnelle
+	\url{http://www.iro.umontreal.ca/~monnier/2035/notes-funs.pdf}
+	
+	\bibitem{article5}
+	S. Monnier. Sujet du TP
+	\url{http://www.iro.umontreal.ca/~monnier/2035/a2022/slip.pdf}
+	
+\end{thebibliography}
+
+\end{document}
